@@ -1,0 +1,74 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin · GESA-UENR Hub</title><meta name="robots" content="noindex"><link rel="icon" href="assets/favicon.ico"><link rel="stylesheet" href="css/style.css"></head><body>
+<main class="wrap" style="padding-bottom:70px">
+<p style="margin-top:20px"><a href="index.html">← Back to the Hub</a></p><h1>Admin</h1>
+<p class="mu">Upload files from your phone or computer, manage materials and forms, with no code. Changes go straight to your GitHub repo and appear on the site after 1 to 2 minutes.</p>
+<details id="setup" open><summary>1. Connect to your GitHub (one time)</summary><div class="dc">
+<ol style="padding-left:20px;margin:6px 0 14px"><li>On github.com open <b>Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token</b>.</li><li>Set an expiry (e.g. 90 days). Under <b>Repository access</b> choose <b>Only select repositories</b> and pick your hub repo.</li><li>Under <b>Permissions > Repository permissions</b> set <b>Contents</b> to <b>Read and write</b>. Generate, copy the token, paste below.</li></ol>
+<div class="af" id="cfg"></div><label class="ck"><input type="checkbox" id="rem" checked> Remember on this device only</label>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="save">Save connection</button><button class="btn ghost" id="forget">Forget token</button></div>
+<p style="margin-top:10px;font-size:.85rem">The token stays in this browser and is sent only to GitHub. Never share it, and don't use this on a public computer. Anyone without a valid token can open this page but cannot change anything.</p></div></details>
+<div class="chips" id="tabs" role="tablist"></div><div id="st" role="status" aria-live="polite" style="margin:10px 0;font-weight:600"></div><div id="panels"></div></main>
+<script>
+const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LV=['level-100','level-200','level-300','level-400'],SM=['sem-1','sem-2'],CAT=['slides','references','past-questions','tutorials'],CAP={slides:'Slides',references:'Reference','past-questions':'PastQuestion',tutorials:'Tutorial'};
+const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+const h=location.hostname.match(/^(.+)\.github\.io$/);
+let cfg={o:h?h[1]:'',r:h?location.pathname.split('/')[1]||'':'',b:'main',t:'',...JSON.parse(ls.get('gesa-admin')||'{}')};
+const say=(m,bad)=>{$('st').textContent=m;$('st').style.color=bad?'#c0392b':'inherit'};
+const fld=(id,l,o,t)=>`<label>${l}${o?`<select id="${id}" class="in">${o.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>`:`<input id="${id}" class="in" type="${t||'text'}" autocomplete="off">`}</label>`;
+$('cfg').innerHTML=fld('co','GitHub username')+fld('cr0','Repository name')+fld('cb','Branch')+fld('ct','Token','',"password");
+$('co').value=cfg.o;$('cr0').value=cfg.r;$('cb').value=cfg.b;$('ct').value=cfg.t;
+$('save').onclick=()=>{cfg={o:$('co').value.trim(),r:$('cr0').value.trim(),b:$('cb').value.trim()||'main',t:$('ct').value.trim()};ls.set('gesa-admin',JSON.stringify($('rem').checked?cfg:{...cfg,t:''}));say('Connection saved. Test it by opening Manage materials.')};
+$('forget').onclick=()=>{ls.del('gesa-admin');cfg.t='';$('ct').value='';say('Token removed from this device.')};
+/* ---- GitHub API ---- */
+const api=async(m,p,b)=>{if(!cfg.t||!cfg.o||!cfg.r)throw new Error('Connect to GitHub first (step 1).');
+ const r=await fetch(`https://api.github.com/repos/${cfg.o}/${cfg.r}/contents/${p}`+(m=='GET'?`?ref=${cfg.b}&t=${Date.now()}`:''),{method:m,headers:{Authorization:'Bearer '+cfg.t,Accept:'application/vnd.github+json'},body:b?JSON.stringify({...b,branch:cfg.b}):undefined});
+ if(r.status==404)return null;if(!r.ok)throw new Error((await r.json().catch(()=>({}))).message||'GitHub error '+r.status);return r.json()};
+const dec=c=>new TextDecoder().decode(Uint8Array.from(atob(c.replace(/\n/g,'')),x=>x.charCodeAt(0)));
+const b64=s=>{const u=new TextEncoder().encode(s);let o='';for(let i=0;i<u.length;i+=8192)o+=String.fromCharCode(...u.subarray(i,i+8192));return btoa(o)};
+const fileB64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.onerror=no;r.readAsDataURL(f)});
+async function edit(path,fn){const f=await api('GET',path),d=f?JSON.parse(dec(f.content)):{};fn(d);await api('PUT',path,{message:'Update '+path,content:b64(JSON.stringify(d,null,1)),sha:f?.sha})}
+const rj=async p=>{try{if(cfg.t){const f=await api('GET',p);return f?JSON.parse(dec(f.content)):null}}catch(e){}return fetch(p+'?t='+Date.now()).then(r=>r.ok?r.json():null).catch(()=>null)};
+const run=fn=>async e=>{e&&e.preventDefault&&e.preventDefault();try{await fn()}catch(x){say('Problem: '+x.message,1)}};
+/* ---- panels ---- */
+const T={up:'Upload material',mg:'Manage materials',fm:'Forms',cs:'Courses'};
+$('tabs').innerHTML=Object.entries(T).map(([k,v],i)=>`<button class="chip" data-k="${k}" aria-pressed="${i==0}">${v}</button>`).join('');
+$('panels').innerHTML=`
+<section id="up"><div class="af">${fld('p','Programme',[])}${fld('l','Level',LV)}${fld('s','Semester',SM)}${fld('c','Course',[])}${fld('cat','Category',CAT)}${fld('ti','Title')}${fld('le','Lecturer (for slides)')}${fld('yr','Year (e.g. 2026)','','number')}${fld('ex','Exam type (past questions)',['','mid-semester','end-of-semester'])}<label>File from your device<input id="fi" type="file" class="in" accept=".pdf,.ppt,.pptx,.doc,.docx" style="padding-top:10px"></label>${fld('eu','OR external link (Google Drive, for files over 25 MB)')}</div><button class="btn" id="go" style="margin-top:14px">Publish</button></section>
+<section id="mg" hidden><button class="btn ghost" id="rl">Refresh list</button><div id="ml"></div></section>
+<section id="fm" hidden><a class="btn" href="https://docs.google.com/forms/create" target="_blank" rel="noopener">＋ Create a new Google Form</a><p class="mu" style="margin:8px 0 14px">Build the form on Google, click Send > link icon > Copy, then paste the link below to list it on the Forms page.</p><div class="af">${fld('ft','Form title')}${fld('fd','Description')}${fld('fdl','Deadline','','date')}${fld('fs','Status',['Open','Closed'])}${fld('fu','Form link (https://…)')}</div><button class="btn" id="fg" style="margin-top:14px">Add to Forms page</button><h3 style="margin-top:24px">Current forms</h3><div id="fl"></div></section>
+<section id="cs" hidden><div class="af">${fld('cp','Programme',[])}${fld('cl','Level',LV)}${fld('cs2','Semester',SM)}${fld('cc','Course code (e.g. MATH 109)')}${fld('cn','Course name')}${fld('cr','Credits','','number')}</div><button class="btn" id="cg" style="margin-top:14px">Add course</button></section>`;
+$('tabs').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;document.querySelectorAll('#tabs .chip').forEach(x=>x.setAttribute('aria-pressed',x==b));Object.keys(T).forEach(k=>$(k).hidden=k!=b.dataset.k);say('');if(b.dataset.k=='mg')ml();if(b.dataset.k=='fm')fl()};
+/* programmes + course dropdown */
+fetch('data/programmes.json').then(r=>r.json()).then(d=>{const o=d.schools.flatMap(s=>s.programmes).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');$('p').innerHTML=o;$('cp').innerHTML=o;lc()}).catch(()=>say('Could not load programmes.json',1));
+async function lc(){const j=await rj(`data/courses/${$('p').value}.json`),a=j?.levels?.[$('l').value]?.[$('s').value]||[];$('c').innerHTML=a.length?a.map(x=>`<option value="${esc(x.code.replace(/\s+/g,''))}">${esc(x.code)} · ${esc(x.name)}</option>`).join(''):'<option value="">No courses yet: add one in the Courses tab</option>'}
+['p','l','s'].forEach(i=>$(i).onchange=lc);
+/* upload */
+$('go').onclick=run(async()=>{const d=Object.fromEntries(['p','l','s','c','cat','ti','le','yr','ex','eu'].map(k=>[k,$(k).value.trim()])),file=$('fi').files[0];
+ if(!d.c||!d.ti)return say('Choose a course and enter a title.',1);let path='',size='',ft='pdf';
+ if(file){if(file.size>25*1048576)return say('This file is over 25 MB. Upload it to Google Drive and paste the link instead.',1);
+  const ext=file.name.split('.').pop().toLowerCase();ft=ext=='ppt'?'pptx':ext;const dir=`materials/${d.p}/${d.l}/${d.s}/${d.c}/${d.cat}/`;
+  let name=[d.c,CAP[d.cat],d.le.replace(/[^A-Za-z0-9]/g,''),d.yr].filter(Boolean).join('_')+'.'+ext;if(await api('GET',dir+name))name=name.replace('.'+ext,'_'+Date.now().toString(36).slice(-4)+'.'+ext);
+  say('Uploading file…');path=dir+name;await api('PUT',path,{message:'Add '+name,content:await fileB64(file)});size=(file.size/1048576).toFixed(1)+' MB'}
+ else if(!d.eu)return say('Pick a file from your device, or paste an external link.',1);
+ say('Updating the list…');const it={id:`${d.c.toLowerCase()}-${Date.now().toString(36)}`,programme:d.p,level:d.l,semester:d.s,course:d.c,category:d.cat,title:d.ti,fileType:ft,size,path,externalUrl:d.eu,dateAdded:new Date().toISOString().slice(0,10)};
+ if(d.le)it.lecturer=d.le;if(d.yr)it.year=+d.yr;if(d.ex)it.examType=d.ex;
+ await edit('data/resources.json',j=>{(j.items=j.items||[]).push(it)});say('Done ✓ It will appear on the site in 1 to 2 minutes.');$('ti').value='';$('fi').value=''});
+/* manage */
+async function ml(){const j=await rj('data/resources.json'),a=j?.items||[];$('ml').innerHTML=a.length?a.map(r=>`<div class="it"><span class="ft ${esc(r.fileType)}">${esc((r.fileType||'').toUpperCase())}</span><div class="im"><h4>${esc(r.title)}</h4><p>${esc(r.course)} · ${esc(r.category)} · ${esc(r.level)} ${esc(r.semester)}</p></div><div class="ac"><button class="btn ghost" data-ed="${esc(r.id)}">Edit title</button><button class="btn ghost" data-rm="${esc(r.id)}">Delete</button></div></div>`).join(''):'<p class="mu" style="margin-top:12px">No materials yet.</p>'}
+$('rl').onclick=run(ml);
+$('ml').onclick=run(async()=>{const e=event.target.closest('button');if(!e)return;
+ if(e.dataset.ed){const t=prompt('New title:');if(!t)return;await edit('data/resources.json',j=>{j.items.find(x=>x.id==e.dataset.ed).title=t});say('Title updated ✓');ml()}
+ if(e.dataset.rm){if(!confirm('Delete this material and its file?'))return;let p='';await edit('data/resources.json',j=>{const i=j.items.findIndex(x=>x.id==e.dataset.rm);p=j.items[i].path;j.items.splice(i,1)});
+  if(p){const f=await api('GET',p);f&&await api('DELETE',p,{message:'Delete '+p,sha:f.sha})}say('Deleted ✓');ml()}});
+/* forms */
+async function fl(){const j=await rj('data/forms.json'),a=j?.items||[];$('fl').innerHTML=a.length?a.map((x,i)=>`<div class="it"><div class="im"><h4>${esc(x.title)}</h4><p>${esc(x.status)} · deadline ${esc(x.deadline||'none')}</p></div><div class="ac"><button class="btn ghost" data-tg="${i}">${x.status=='Open'?'Close':'Reopen'}</button><button class="btn ghost" data-dx="${i}">Remove</button></div></div>`).join(''):'<p class="mu">No forms yet.</p>'}
+$('fg').onclick=run(async()=>{const t=$('ft').value.trim(),u=$('fu').value.trim();if(!t||!/^https:\/\//.test(u))return say('Enter a title and a link starting with https://',1);
+ await edit('data/forms.json',j=>{(j.items=j.items||[]).push({title:t,description:$('fd').value.trim(),deadline:$('fdl').value,status:$('fs').value,url:u})});say('Form added ✓');['ft','fd','fu'].forEach(k=>$(k).value='');fl()});
+$('fl').onclick=run(async()=>{const e=event.target.closest('button');if(!e)return;
+ await edit('data/forms.json',j=>{if(e.dataset.tg){const f=j.items[+e.dataset.tg];f.status=f.status=='Open'?'Closed':'Open'}if(e.dataset.dx)j.items.splice(+e.dataset.dx,1)});say('Updated ✓');fl()});
+/* courses */
+$('cg').onclick=run(async()=>{const p=$('cp').value,l=$('cl').value,s=$('cs2').value,c=$('cc').value.trim(),n=$('cn').value.trim();if(!c||!n)return say('Enter the course code and name.',1);
+ await edit(`data/courses/${p}.json`,j=>{j.programme=p;j.levels??={};(j.levels[l]??={})[s]??=[];j.levels[l][s].push({code:c,name:n,credits:+$('cr').value||0})});say('Course added ✓');['cc','cn','cr'].forEach(k=>$(k).value='');lc()});
+fetch('data/site.json').then(r=>r.json()).then(s=>{[['b1',s.driveFolderUrl],['b2',s.sheetEditUrl]].forEach(([i,u])=>{const e=document.getElementById(i);if(u)e.href=u;else{e.classList.add('off');document.getElementById('nb').textContent='Add your Drive and Sheet links in data/site.json first (see README).'}})}).catch(()=>{});
+</script></body></html>

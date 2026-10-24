@@ -1,0 +1,52 @@
+{
+ "_note": "One entry per file. Use path (file in /materials) OR externalUrl (Drive link). The SAMPLE entries use example.com: replace or delete them when you add real files. Rows in the Google Sheet also show on the site.",
+ "items": [
+  {
+   "id": "sample-1",
+   "programme": "petroleum-engineering",
+   "level": "level-100",
+   "semester": "sem-1",
+   "course": "MATH109",
+   "category": "slides",
+   "title": "SAMPLE: Differentiation, Week 3",
+   "lecturer": "Dr. Sample",
+   "year": 2026,
+   "fileType": "pdf",
+   "size": "2.4 MB",
+   "path": "",
+   "externalUrl": "https://example.com/sample.pdf",
+   "dateAdded": "2026-10-23"
+  },
+  {
+   "id": "sample-2",
+   "programme": "petroleum-engineering",
+   "level": "level-100",
+   "semester": "sem-1",
+   "course": "MATH109",
+   "category": "past-questions",
+   "title": "SAMPLE: End-of-semester paper",
+   "year": 2025,
+   "examType": "end-of-semester",
+   "fileType": "pdf",
+   "size": "1.1 MB",
+   "path": "",
+   "externalUrl": "https://example.com/sample.pdf",
+   "dateAdded": "2026-10-22"
+  },
+  {
+   "id": "sample-3",
+   "programme": "petroleum-engineering",
+   "level": "level-100",
+   "semester": "sem-1",
+   "course": "PENG151",
+   "category": "references",
+   "title": "SAMPLE: Physical Geology (reference)",
+   "year": 2024,
+   "fileType": "pptx",
+   "size": "8 MB",
+   "path": "",
+   "externalUrl": "https://example.com/sample.pptx",
+   "dateAdded": "2026-10-20"
+  }
+ ]
+}
